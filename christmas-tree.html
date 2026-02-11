@@ -1,0 +1,1681 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>圣诞树</title>
+    <style>
+      * {
+        -webkit-tap-highlight-color: transparent;
+      }
+      body {
+        margin: 0;
+        overflow: hidden;
+        background-color: #000000;
+        font-family: 'Times New Roman', serif;
+        touch-action: none;
+      }
+      #canvas-container {
+        width: 100vw;
+        height: 100vh;
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 1;
+      }
+
+      /* UI Overlay */
+      #ui-layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 10;
+        pointer-events: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding-top: 30px;
+        box-sizing: border-box;
+      }
+
+      /* Loading */
+      #loader {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: #000;
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 0.8s ease-out;
+      }
+      .loader-text {
+        color: #d4af37;
+        font-size: 14px;
+        letter-spacing: 4px;
+        margin-top: 20px;
+        text-transform: uppercase;
+        font-weight: 100;
+      }
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 1px solid rgba(212, 175, 55, 0.2);
+        border-top: 1px solid #d4af37;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Typography */
+      h1 {
+        color: #fceea7;
+        font-size: 32px;
+        margin: 0;
+        font-weight: 400;
+        letter-spacing: 4px;
+        text-shadow: 0 0 50px rgba(252, 238, 167, 0.6);
+        background: linear-gradient(to bottom, #fff, #eebb66);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-family: 'Cinzel', 'Times New Roman', serif;
+        opacity: 0.9;
+      }
+
+      /* Upload Button */
+      .upload-wrapper {
+        margin-top: 15px;
+        pointer-events: auto;
+        text-align: center;
+      }
+      .upload-btn {
+        background: rgba(20, 20, 20, 0.6);
+        border: 1px solid rgba(212, 175, 55, 0.4);
+        color: #d4af37;
+        padding: 10px 20px;
+        cursor: pointer;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        font-size: 10px;
+        transition: all 0.4s;
+        display: inline-block;
+        backdrop-filter: blur(5px);
+      }
+      .upload-btn:active {
+        background: #d4af37;
+        color: #000;
+      }
+      .hint-text {
+        color: rgba(212, 175, 55, 0.6);
+        font-size: 10px;
+        margin-top: 10px;
+        letter-spacing: 1px;
+      }
+      #file-input {
+        display: none;
+      }
+
+      /* 控制按钮组 */
+      .control-buttons {
+        margin-top: 20px;
+        pointer-events: auto;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .control-btn {
+        background: rgba(20, 20, 20, 0.7);
+        border: 1px solid rgba(212, 175, 55, 0.5);
+        color: #d4af37;
+        padding: 10px 16px;
+        cursor: pointer;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-size: 11px;
+        transition: all 0.3s;
+        border-radius: 4px;
+        backdrop-filter: blur(5px);
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .control-btn:active,
+      .control-btn.active {
+        background: #d4af37;
+        color: #000;
+        border-color: #d4af37;
+      }
+      .control-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      /* 响应式 */
+      @media screen and (max-width: 480px) {
+        h1 {
+          font-size: 26px;
+          letter-spacing: 2px;
+        }
+        #ui-layer {
+          padding-top: 20px;
+        }
+        .upload-btn {
+          padding: 8px 16px;
+          font-size: 9px;
+        }
+        .control-btn {
+          padding: 8px 12px;
+          font-size: 10px;
+        }
+        .control-buttons {
+          gap: 8px;
+          margin-top: 15px;
+        }
+      }
+
+      @media screen and (max-height: 500px) and (orientation: landscape) {
+        h1 {
+          font-size: 22px;
+        }
+        #ui-layer {
+          padding-top: 10px;
+        }
+        .upload-wrapper {
+          margin-top: 8px;
+        }
+        .control-buttons {
+          margin-top: 10px;
+        }
+      }
+
+      /* 摄像头预览 */
+      #webcam {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 160px;
+        height: 120px;
+        border: 2px solid rgba(212, 175, 55, 0.6);
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 20;
+        object-fit: cover;
+        transform: scaleX(-1); /* 镜像显示，更符合用户习惯 */
+        box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+      }
+
+      @media screen and (max-width: 480px) {
+        #webcam {
+          width: 120px;
+          height: 90px;
+          bottom: 15px;
+          right: 15px;
+        }
+      }
+    </style>
+
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap');
+    </style>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+          "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/+esm",
+          "three-unpkg": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three-addons-unpkg/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+          "three-cdnjs": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r160/three.module.min.js",
+          "three-addons-cdnjs/": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r160/examples/jsm/",
+          "three-bootcdn": "https://cdn.bootcdn.net/ajax/libs/three.js/0.160.0/three.module.min.js",
+          "three-addons-bootcdn/": "https://cdn.bootcdn.net/ajax/libs/three.js/0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="loader">
+      <div class="spinner"></div>
+      <div class="loader-text">加载中...</div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-layer">
+      <h1>Merry Christmas</h1>
+
+      <div class="upload-wrapper">
+        <label class="upload-btn">
+          添加照片
+          <input type="file" id="file-input" multiple accept="image/*" />
+        </label>
+        <div class="hint-text" id="hint-text">
+          🖐️ 张开散开 · ✊ 握拳合拢 · 🤏 捏合聚焦 · 👍 切换颜色
+        </div>
+      </div>
+
+      <!-- 按钮控制（无摄像头时显示） -->
+      <div class="control-buttons" id="control-buttons" style="display: none">
+        <button class="control-btn" id="btn-tree" data-mode="TREE">🌲 树形</button>
+        <button class="control-btn" id="btn-scatter" data-mode="SCATTER">✨ 散开</button>
+        <button class="control-btn" id="btn-focus" data-mode="FOCUS">🎯 聚焦</button>
+      </div>
+    </div>
+
+    <!-- 摄像头预览用于手势识别 -->
+    <video id="webcam" autoplay playsinline></video>
+
+    <script type="module">
+      // 全局错误处理和超时保护
+      let THREE,
+        EffectComposer,
+        RenderPass,
+        UnrealBloomPass,
+        RoomEnvironment,
+        FilesetResolver,
+        HandLandmarker
+
+      // 更新加载提示
+      function updateLoaderText(text) {
+        const loaderText = document.querySelector('.loader-text')
+        if (loaderText) {
+          loaderText.textContent = text
+        }
+      }
+
+      // 资源加载超时包装函数（支持多个备用CDN依次尝试）
+      async function loadWithTimeout(
+        importPromise,
+        timeout = 30000,
+        resourceName = '资源',
+        fallbackImports = [],
+      ) {
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent,
+        )
+        // 移动端使用5秒超时
+        const actualTimeout = isMobile ? 5000 : timeout
+
+        // 所有CDN源（主CDN + 备用CDN）
+        const allSources = [importPromise, ...fallbackImports]
+        const cdnNames = ['jsdelivr', 'unpkg', 'cdnjs', 'bootcdn']
+
+        updateLoaderText(`正在加载 ${resourceName}...`)
+
+        for (let attempt = 0; attempt < allSources.length; attempt++) {
+          const currentImport =
+            typeof allSources[attempt] === 'function' ? allSources[attempt]() : allSources[attempt]
+          const cdnName = attempt === 0 ? '主CDN' : cdnNames[attempt] || `备用CDN${attempt}`
+
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error(`${resourceName}加载超时(${actualTimeout / 1000}秒)`)),
+              actualTimeout,
+            ),
+          )
+
+          try {
+            updateLoaderText(`正在从${cdnName}加载 ${resourceName}...`)
+            const result = await Promise.race([currentImport, timeoutPromise])
+            updateLoaderText('加载中...')
+            if (attempt > 0) {
+              console.log(`${resourceName}从${cdnName}加载成功`)
+            }
+            return result
+          } catch (err) {
+            console.warn(`${resourceName}从${cdnName}加载失败:`, err.message || err)
+            if (attempt < allSources.length - 1) {
+              updateLoaderText(
+                `${resourceName}加载失败，尝试${cdnNames[attempt + 1] || '下一个'}CDN...`,
+              )
+              // 等待1秒后尝试下一个CDN
+              await new Promise((resolve) => setTimeout(resolve, 1000))
+              continue
+            }
+            // 所有CDN都失败了
+            console.error(`${resourceName}所有CDN加载失败`)
+            throw new Error(`${resourceName}所有CDN加载失败，请检查网络连接`)
+          }
+        }
+      }
+
+      // 加载资源，失败时显示友好提示
+      try {
+        updateLoaderText('正在初始化...')
+
+        // 加载Three.js核心库（必需）- 支持多个备用CDN依次尝试
+        THREE = await loadWithTimeout(
+          import('three'),
+          30000, // 30秒超时（移动端自动改为5秒）
+          'Three.js',
+          [
+            () => import('three-unpkg'), // 备用1: unpkg
+            () => import('three-cdnjs'), // 备用2: cdnjs
+            () => import('three-bootcdn'), // 备用3: bootcdn（国内）
+          ],
+        ).then((m) => m.default || m)
+
+        updateLoaderText('正在加载插件...')
+
+        // 加载Three.js插件 - 移动端串行加载更稳定，桌面端并行加载
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent,
+        )
+
+        let composerModule, renderPassModule, bloomModule, envModule
+
+        // 备用CDN列表
+        const addonFallbacks = (path) => [
+          () => import(`three-addons-unpkg/${path}`),
+          () => import(`three-addons-cdnjs/${path}`),
+          () => import(`three-addons-bootcdn/${path}`),
+        ]
+
+        if (isMobile) {
+          // 移动端串行加载，更稳定，超时时间5秒
+          composerModule = await loadWithTimeout(
+            import('three/addons/postprocessing/EffectComposer.js'),
+            5000,
+            'EffectComposer',
+            addonFallbacks('postprocessing/EffectComposer.js'),
+          )
+
+          renderPassModule = await loadWithTimeout(
+            import('three/addons/postprocessing/RenderPass.js'),
+            5000,
+            'RenderPass',
+            addonFallbacks('postprocessing/RenderPass.js'),
+          )
+
+          bloomModule = await loadWithTimeout(
+            import('three/addons/postprocessing/UnrealBloomPass.js'),
+            5000,
+            'UnrealBloomPass',
+            addonFallbacks('postprocessing/UnrealBloomPass.js'),
+          )
+
+          envModule = await loadWithTimeout(
+            import('three/addons/environments/RoomEnvironment.js'),
+            5000,
+            'RoomEnvironment',
+            addonFallbacks('environments/RoomEnvironment.js'),
+          )
+        } else {
+          // 桌面端并行加载，更快
+          ;[composerModule, renderPassModule, bloomModule, envModule] = await Promise.all([
+            loadWithTimeout(
+              import('three/addons/postprocessing/EffectComposer.js'),
+              25000,
+              'EffectComposer',
+              addonFallbacks('postprocessing/EffectComposer.js'),
+            ),
+            loadWithTimeout(
+              import('three/addons/postprocessing/RenderPass.js'),
+              25000,
+              'RenderPass',
+              addonFallbacks('postprocessing/RenderPass.js'),
+            ),
+            loadWithTimeout(
+              import('three/addons/postprocessing/UnrealBloomPass.js'),
+              25000,
+              'UnrealBloomPass',
+              addonFallbacks('postprocessing/UnrealBloomPass.js'),
+            ),
+            loadWithTimeout(
+              import('three/addons/environments/RoomEnvironment.js'),
+              25000,
+              'RoomEnvironment',
+              addonFallbacks('environments/RoomEnvironment.js'),
+            ),
+          ])
+        }
+
+        EffectComposer = composerModule.EffectComposer
+        RenderPass = renderPassModule.RenderPass
+        UnrealBloomPass = bloomModule.UnrealBloomPass
+        RoomEnvironment = envModule.RoomEnvironment
+
+        updateLoaderText('正在加载手势识别...')
+
+        // MediaPipe可选加载，失败不影响主功能
+        try {
+          const mediapipe = await loadWithTimeout(
+            import('@mediapipe/tasks-vision'),
+            20000,
+            'MediaPipe',
+            [], // MediaPipe没有备用CDN，失败直接跳过
+          )
+          FilesetResolver = mediapipe.FilesetResolver
+          HandLandmarker = mediapipe.HandLandmarker
+        } catch (e) {
+          console.warn('MediaPipe加载失败，将使用按钮控制:', e)
+          FilesetResolver = null
+          HandLandmarker = null
+        }
+
+        updateLoaderText('加载完成！')
+      } catch (err) {
+        console.error('关键资源加载失败:', err)
+        const loader = document.getElementById('loader')
+        if (loader) {
+          const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+            navigator.userAgent,
+          )
+          const errorMsg = isMobile
+            ? '网络连接较慢，请检查网络后重试'
+            : err.message || '请检查网络连接'
+
+          loader.innerHTML = `
+                    <div style="color: #d4af37; text-align: center; padding: 20px;">
+                        <div style="font-size: 18px; margin-bottom: 15px;">⚠️ 资源加载失败</div>
+                        <div style="font-size: 12px; opacity: 0.8; margin-bottom: 15px; line-height: 1.6;">${errorMsg}</div>
+                        <div style="font-size: 11px; opacity: 0.6; margin-bottom: 20px; padding: 10px; background: rgba(212, 175, 55, 0.1); border-radius: 4px;">
+                            <div style="margin-bottom: 5px;">💡 解决方案：</div>
+                            <div style="text-align: left; padding-left: 10px;">
+                                <div>1. 检查网络连接（建议使用WiFi）</div>
+                                <div>2. 刷新页面重试</div>
+                                <div>3. 如果持续失败，请联系管理员</div>
+                            </div>
+                        </div>
+                        <button onclick="location.reload()" style="
+                            background: rgba(212, 175, 55, 0.3);
+                            border: 1px solid #d4af37;
+                            color: #d4af37;
+                            padding: 12px 24px;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-size: 14px;
+                            margin-right: 10px;
+                        ">刷新页面</button>
+                        <button onclick="document.getElementById('loader').style.display='none'; init().catch(e => console.error(e));" style="
+                            background: rgba(212, 175, 55, 0.5);
+                            border: 1px solid #d4af37;
+                            color: #d4af37;
+                            padding: 12px 24px;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-size: 14px;
+                        ">跳过加载</button>
+                    </div>
+                `
+        }
+        // 不抛出错误，让页面继续加载（降级方案）
+        console.warn('资源加载失败，但继续尝试初始化')
+        // 即使资源加载失败，也尝试初始化（可能部分功能不可用）
+        if (!THREE) {
+          console.error('Three.js加载失败，无法继续')
+          // 显示错误并停止执行
+          const loader = document.getElementById('loader')
+          if (loader) {
+            loader.innerHTML = `
+                        <div style="color: #d4af37; text-align: center; padding: 20px;">
+                            <div style="font-size: 18px; margin-bottom: 15px;">❌ 无法加载</div>
+                            <div style="font-size: 12px; opacity: 0.8; margin-bottom: 20px;">Three.js核心库加载失败，请刷新页面重试</div>
+                            <button onclick="location.reload()" style="
+                                background: rgba(212, 175, 55, 0.3);
+                                border: 1px solid #d4af37;
+                                color: #d4af37;
+                                padding: 12px 24px;
+                                border-radius: 4px;
+                                cursor: pointer;
+                                font-size: 14px;
+                            ">刷新页面</button>
+                        </div>
+                    `
+          }
+          // 不继续执行
+        }
+      }
+
+      // 初始化应用（封装为函数，避免顶层return）
+      function initializeApp() {
+        if (!THREE) {
+          console.error('Three.js未加载，无法初始化')
+          return
+        }
+
+        // 延迟初始化，确保DOM已加载
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => init(), 100)
+          })
+        } else {
+          setTimeout(() => init(), 100)
+        }
+      }
+
+      // 资源加载完成后初始化（无论成功还是失败）
+      if (THREE) {
+        // Three.js加载成功，继续初始化
+        initializeApp()
+      } else {
+        // Three.js未加载，已在catch中处理
+        console.warn('等待Three.js加载...')
+      }
+
+      // --- 配置 ---
+      const CONFIG = {
+        // 颜色主题配置
+        colorThemes: [
+          {
+            name: 'default',
+            bg: 0x000000,
+            champagneGold: 0xffd966,
+            deepGreen: 0x03180a,
+            accentRed: 0x990000,
+            goldEmissive: 0x443300,
+            greenEmissive: 0x002200,
+            redEmissive: 0x330000,
+          },
+          {
+            name: 'blue',
+            bg: 0x000510,
+            champagneGold: 0x88ccff,
+            deepGreen: 0x001122,
+            accentRed: 0x4488ff,
+            goldEmissive: 0x224466,
+            greenEmissive: 0x001133,
+            redEmissive: 0x223366,
+          },
+          {
+            name: 'pink',
+            bg: 0x0a0005,
+            champagneGold: 0xffaacc,
+            deepGreen: 0x220011,
+            accentRed: 0xff6699,
+            goldEmissive: 0x662244,
+            greenEmissive: 0x220011,
+            redEmissive: 0x662244,
+          },
+        ],
+        particles: {
+          count: 2000,
+          dustCount: 800,
+          treeHeight: 20,
+          treeRadius: 6.5,
+        },
+        camera: {
+          z: 55,
+        },
+      }
+
+      const STATE = {
+        mode: 'TREE',
+        focusTarget: null,
+        hand: { detected: false, x: 0, y: 0 },
+        rotation: { x: 0, y: 0 },
+        touch: {
+          isDragging: false,
+          lastX: 0,
+          lastY: 0,
+          pinchDistance: 0,
+        },
+        hasCamera: false,
+        cameraEnabled: false,
+        gesture: {
+          lastMode: 'TREE',
+          lastModeTime: 0,
+          debounceDelay: 300, // 防抖延迟300ms
+          lastThumbUpTime: 0,
+          thumbUpDebounceDelay: 500, // 大拇指手势防抖延迟500ms
+        },
+        colorThemeIndex: 0, // 当前颜色主题索引
+      }
+
+      let scene, camera, renderer, composer
+      let mainGroup
+      let clock = new THREE.Clock()
+      let particleSystem = []
+      let photoMeshGroup = new THREE.Group()
+      let handLandmarker, video
+      let caneTexture
+      // 保存材质引用，用于颜色切换
+      let materialRefs = {
+        goldMat: null,
+        greenMat: null,
+        redMat: null,
+        starMat: null,
+      }
+
+      async function init() {
+        try {
+          initThree()
+          setupEnvironment()
+          setupLights()
+          createTextures()
+          createParticles()
+          createDust()
+          createDefaultPhotos()
+          setupPostProcessing()
+          setupEvents()
+
+          // 初始化按钮状态
+          document.getElementById('btn-tree').classList.add('active')
+
+          // 启动动画
+          animate()
+
+          // 隐藏加载器，确保一定会隐藏
+          hideLoader()
+        } catch (err) {
+          console.error('初始化失败:', err)
+          // 即使出错也要隐藏加载器
+          hideLoader()
+          // 显示错误提示
+          showError('页面加载失败，请刷新重试')
+        }
+
+        // 异步启动手势识别，不阻塞页面显示
+        initMediaPipe().catch((err) => {
+          // 错误已在 initMediaPipe 内部处理，这里只做兜底
+          if (!err.message || !err.message.includes('timeout')) {
+            console.log('Fallback to button controls')
+          }
+        })
+      }
+
+      // 隐藏加载器
+      function hideLoader() {
+        const loader = document.getElementById('loader')
+        if (loader) {
+          loader.style.opacity = '0'
+          setTimeout(() => {
+            if (loader.parentNode) {
+              loader.remove()
+            }
+          }, 800)
+        }
+      }
+
+      // 显示错误提示
+      function showError(message) {
+        const errorDiv = document.createElement('div')
+        errorDiv.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(255, 0, 0, 0.9);
+                color: white;
+                padding: 20px;
+                border-radius: 8px;
+                z-index: 1000;
+                text-align: center;
+                max-width: 80%;
+            `
+        errorDiv.textContent = message
+        document.body.appendChild(errorDiv)
+        setTimeout(() => errorDiv.remove(), 5000)
+      }
+
+      // 添加资源加载超时保护
+      window.addEventListener(
+        'error',
+        (e) => {
+          console.error('资源加载错误:', e)
+          // 如果是关键资源加载失败，隐藏加载器
+          if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
+            hideLoader()
+          }
+        },
+        true,
+      )
+
+      // 添加未捕获的Promise错误处理
+      window.addEventListener('unhandledrejection', (e) => {
+        console.error('未处理的Promise错误:', e.reason)
+        hideLoader()
+      })
+
+      function initThree() {
+        const container = document.getElementById('canvas-container')
+        scene = new THREE.Scene()
+        const currentTheme = CONFIG.colorThemes[STATE.colorThemeIndex]
+        scene.background = new THREE.Color(currentTheme.bg)
+        scene.fog = new THREE.FogExp2(currentTheme.bg, 0.01)
+
+        camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 1000)
+        camera.position.set(0, 2, CONFIG.camera.z)
+
+        renderer = new THREE.WebGLRenderer({
+          antialias: true,
+          alpha: false,
+          powerPreference: 'high-performance',
+        })
+        renderer.setSize(window.innerWidth, window.innerHeight)
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+        renderer.toneMapping = THREE.ReinhardToneMapping
+        renderer.toneMappingExposure = 2.2
+        container.appendChild(renderer.domElement)
+
+        mainGroup = new THREE.Group()
+        scene.add(mainGroup)
+      }
+
+      function setupEnvironment() {
+        const pmremGenerator = new THREE.PMREMGenerator(renderer)
+        scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture
+      }
+
+      function setupLights() {
+        const ambient = new THREE.AmbientLight(0xffffff, 0.6)
+        scene.add(ambient)
+
+        const innerLight = new THREE.PointLight(0xffaa00, 2, 20)
+        innerLight.position.set(0, 5, 0)
+        mainGroup.add(innerLight)
+
+        const spotGold = new THREE.SpotLight(0xffcc66, 1200)
+        spotGold.position.set(30, 40, 40)
+        spotGold.angle = 0.5
+        spotGold.penumbra = 0.5
+        scene.add(spotGold)
+
+        const spotBlue = new THREE.SpotLight(0x6688ff, 600)
+        spotBlue.position.set(-30, 20, -30)
+        scene.add(spotBlue)
+
+        const fill = new THREE.DirectionalLight(0xffeebb, 0.8)
+        fill.position.set(0, 0, 50)
+        scene.add(fill)
+      }
+
+      function setupPostProcessing() {
+        const renderScene = new RenderPass(scene, camera)
+        const bloomPass = new UnrealBloomPass(
+          new THREE.Vector2(window.innerWidth, window.innerHeight),
+          1.5,
+          0.4,
+          0.85,
+        )
+        bloomPass.threshold = 0.7
+        bloomPass.strength = 0.45
+        bloomPass.radius = 0.4
+
+        composer = new EffectComposer(renderer)
+        composer.addPass(renderScene)
+        composer.addPass(bloomPass)
+      }
+
+      function createTextures() {
+        const canvas = document.createElement('canvas')
+        canvas.width = 128
+        canvas.height = 128
+        const ctx = canvas.getContext('2d')
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, 128, 128)
+        ctx.fillStyle = '#880000'
+        ctx.beginPath()
+        for (let i = -128; i < 256; i += 32) {
+          ctx.moveTo(i, 0)
+          ctx.lineTo(i + 32, 128)
+          ctx.lineTo(i + 16, 128)
+          ctx.lineTo(i - 16, 0)
+        }
+        ctx.fill()
+        caneTexture = new THREE.CanvasTexture(canvas)
+        caneTexture.wrapS = THREE.RepeatWrapping
+        caneTexture.wrapT = THREE.RepeatWrapping
+        caneTexture.repeat.set(3, 3)
+      }
+
+      class Particle {
+        constructor(mesh, type, isDust = false) {
+          this.mesh = mesh
+          this.type = type
+          this.isDust = isDust
+
+          this.posTree = new THREE.Vector3()
+          this.posScatter = new THREE.Vector3()
+          this.baseScale = mesh.scale.x
+
+          const speedMult = type === 'PHOTO' ? 0.3 : 2.0
+          this.spinSpeed = new THREE.Vector3(
+            (Math.random() - 0.5) * speedMult,
+            (Math.random() - 0.5) * speedMult,
+            (Math.random() - 0.5) * speedMult,
+          )
+
+          this.calculatePositions()
+        }
+
+        calculatePositions() {
+          const h = CONFIG.particles.treeHeight
+          const halfH = h / 2
+          let t = Math.random()
+          t = Math.pow(t, 0.8)
+          const y = t * h - halfH
+          let rMax = CONFIG.particles.treeRadius * (1.0 - t)
+          if (rMax < 0.5) rMax = 0.5
+          const angle = t * 50 * Math.PI + Math.random() * Math.PI
+          const r = rMax * (0.8 + Math.random() * 0.4)
+          this.posTree.set(Math.cos(angle) * r, y, Math.sin(angle) * r)
+
+          let rScatter = this.isDust ? 12 + Math.random() * 20 : 8 + Math.random() * 12
+          const theta = Math.random() * Math.PI * 2
+          const phi = Math.acos(2 * Math.random() - 1)
+          this.posScatter.set(
+            rScatter * Math.sin(phi) * Math.cos(theta),
+            rScatter * Math.sin(phi) * Math.sin(theta),
+            rScatter * Math.cos(phi),
+          )
+        }
+
+        update(dt, mode, focusTargetMesh) {
+          let target = this.posTree
+
+          if (mode === 'SCATTER') target = this.posScatter
+          else if (mode === 'FOCUS') {
+            if (this.mesh === focusTargetMesh) {
+              // 调整聚焦位置，稍微远离相机，避免过亮
+              const desiredWorldPos = new THREE.Vector3(0, 2, 40)
+              const invMatrix = new THREE.Matrix4().copy(mainGroup.matrixWorld).invert()
+              target = desiredWorldPos.applyMatrix4(invMatrix)
+            } else {
+              target = this.posScatter
+            }
+          }
+
+          const lerpSpeed = mode === 'FOCUS' && this.mesh === focusTargetMesh ? 5.0 : 2.0
+          this.mesh.position.lerp(target, lerpSpeed * dt)
+
+          if (mode === 'SCATTER') {
+            this.mesh.rotation.x += this.spinSpeed.x * dt
+            this.mesh.rotation.y += this.spinSpeed.y * dt
+            this.mesh.rotation.z += this.spinSpeed.z * dt
+          } else if (mode === 'TREE') {
+            this.mesh.rotation.x = THREE.MathUtils.lerp(this.mesh.rotation.x, 0, dt)
+            this.mesh.rotation.z = THREE.MathUtils.lerp(this.mesh.rotation.z, 0, dt)
+            this.mesh.rotation.y += 0.5 * dt
+          }
+
+          if (mode === 'FOCUS' && this.mesh === focusTargetMesh) {
+            this.mesh.lookAt(camera.position)
+          }
+
+          let s = this.baseScale
+          if (this.isDust) {
+            s = this.baseScale * (0.8 + 0.4 * Math.sin(clock.elapsedTime * 4 + this.mesh.id))
+            if (mode === 'TREE') s = 0
+          } else if (mode === 'SCATTER' && this.type === 'PHOTO') {
+            s = this.baseScale * 2.5
+          } else if (mode === 'FOCUS') {
+            if (this.mesh === focusTargetMesh) s = 4.5
+            else s = this.baseScale * 0.8
+          }
+
+          this.mesh.scale.lerp(new THREE.Vector3(s, s, s), 4 * dt)
+        }
+      }
+
+      function createParticles() {
+        const sphereGeo = new THREE.SphereGeometry(0.5, 32, 32)
+        const boxGeo = new THREE.BoxGeometry(0.55, 0.55, 0.55)
+        const curve = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(0, -0.5, 0),
+          new THREE.Vector3(0, 0.3, 0),
+          new THREE.Vector3(0.1, 0.5, 0),
+          new THREE.Vector3(0.3, 0.4, 0),
+        ])
+        const candyGeo = new THREE.TubeGeometry(curve, 16, 0.08, 8, false)
+
+        const theme = CONFIG.colorThemes[STATE.colorThemeIndex]
+
+        const goldMat = new THREE.MeshStandardMaterial({
+          color: theme.champagneGold,
+          metalness: 1.0,
+          roughness: 0.1,
+          envMapIntensity: 2.0,
+          emissive: theme.goldEmissive,
+          emissiveIntensity: 0.3,
+        })
+
+        const greenMat = new THREE.MeshStandardMaterial({
+          color: theme.deepGreen,
+          metalness: 0.2,
+          roughness: 0.8,
+          emissive: theme.greenEmissive,
+          emissiveIntensity: 0.2,
+        })
+
+        const redMat = new THREE.MeshPhysicalMaterial({
+          color: theme.accentRed,
+          metalness: 0.3,
+          roughness: 0.2,
+          clearcoat: 1.0,
+          emissive: theme.redEmissive,
+        })
+
+        const candyMat = new THREE.MeshStandardMaterial({ map: caneTexture, roughness: 0.4 })
+
+        // 保存材质引用
+        materialRefs.goldMat = goldMat
+        materialRefs.greenMat = greenMat
+        materialRefs.redMat = redMat
+
+        for (let i = 0; i < CONFIG.particles.count; i++) {
+          const rand = Math.random()
+          let mesh, type
+
+          if (rand < 0.4) {
+            mesh = new THREE.Mesh(boxGeo, greenMat)
+            type = 'BOX'
+          } else if (rand < 0.7) {
+            mesh = new THREE.Mesh(boxGeo, goldMat)
+            type = 'GOLD_BOX'
+          } else if (rand < 0.82) {
+            mesh = new THREE.Mesh(sphereGeo, goldMat)
+            type = 'GOLD_SPHERE'
+          } else if (rand < 0.95) {
+            mesh = new THREE.Mesh(sphereGeo, redMat)
+            type = 'RED'
+          } else {
+            mesh = new THREE.Mesh(candyGeo, candyMat)
+            type = 'CANE'
+          }
+
+          const s = 0.25 + Math.random() * 0.25
+          mesh.scale.set(s, s, s)
+          mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6)
+
+          mainGroup.add(mesh)
+          particleSystem.push(new Particle(mesh, type, false))
+        }
+
+        // 创建五角星几何体
+        function createStarGeometry(outerRadius, innerRadius, depth) {
+          const shape = new THREE.Shape()
+          const points = 5
+          const angleStep = (Math.PI * 2) / points
+
+          for (let i = 0; i < points * 2; i++) {
+            const angle = (i * angleStep) / 2 + Math.PI / 2
+            const radius = i % 2 === 0 ? outerRadius : innerRadius
+            const x = Math.cos(angle) * radius
+            const y = Math.sin(angle) * radius
+
+            if (i === 0) {
+              shape.moveTo(x, y)
+            } else {
+              shape.lineTo(x, y)
+            }
+          }
+          shape.closePath()
+
+          const extrudeSettings = {
+            depth: depth,
+            bevelEnabled: true,
+            bevelThickness: 0.05,
+            bevelSize: 0.05,
+            bevelSegments: 3,
+          }
+
+          return new THREE.ExtrudeGeometry(shape, extrudeSettings)
+        }
+
+        const starGeo = createStarGeometry(1.2, 0.5, 0.3)
+        const starTheme = CONFIG.colorThemes[STATE.colorThemeIndex]
+        const starMat = new THREE.MeshStandardMaterial({
+          color: starTheme.champagneGold,
+          emissive: starTheme.champagneGold,
+          emissiveIntensity: 1.0,
+          metalness: 1.0,
+          roughness: 0,
+        })
+        materialRefs.starMat = starMat
+        const star = new THREE.Mesh(starGeo, starMat)
+        star.position.set(0, CONFIG.particles.treeHeight / 2 + 1.2, 0)
+        mainGroup.add(star)
+
+        mainGroup.add(photoMeshGroup)
+      }
+
+      function createDust() {
+        const geo = new THREE.TetrahedronGeometry(0.08, 0)
+        const mat = new THREE.MeshBasicMaterial({
+          color: 0xffeebb,
+          transparent: true,
+          opacity: 0.8,
+        })
+
+        for (let i = 0; i < CONFIG.particles.dustCount; i++) {
+          const mesh = new THREE.Mesh(geo, mat)
+          mesh.scale.setScalar(0.5 + Math.random())
+          mainGroup.add(mesh)
+          particleSystem.push(new Particle(mesh, 'DUST', true))
+        }
+      }
+
+      function createDefaultPhotos() {
+        const canvas = document.createElement('canvas')
+        canvas.width = 512
+        canvas.height = 512
+        const ctx = canvas.getContext('2d')
+        ctx.fillStyle = '#050505'
+        ctx.fillRect(0, 0, 512, 512)
+        ctx.strokeStyle = '#eebb66'
+        ctx.lineWidth = 15
+        ctx.strokeRect(20, 20, 472, 472)
+        ctx.font = '500 60px Times New Roman'
+        ctx.fillStyle = '#eebb66'
+        ctx.textAlign = 'center'
+        ctx.fillText('JOYEUX', 256, 230)
+        ctx.fillText('NOEL', 256, 300)
+
+        const tex = new THREE.CanvasTexture(canvas)
+        tex.colorSpace = THREE.SRGBColorSpace
+        addPhotoToScene(tex)
+      }
+
+      function addPhotoToScene(texture) {
+        const frameGeo = new THREE.BoxGeometry(1.4, 1.4, 0.05)
+        const currentTheme = CONFIG.colorThemes[STATE.colorThemeIndex]
+        const frameMat = new THREE.MeshStandardMaterial({
+          color: currentTheme.champagneGold,
+          metalness: 1.0,
+          roughness: 0.1,
+        })
+        const frame = new THREE.Mesh(frameGeo, frameMat)
+
+        const photoGeo = new THREE.PlaneGeometry(1.2, 1.2)
+        // 使用 MeshBasicMaterial，不受光照影响，直接显示图片原始颜色
+        // 通过调整颜色来降低整体亮度
+        const photoMat = new THREE.MeshBasicMaterial({
+          map: texture,
+          toneMapped: false, // 禁用色调映射，保持原始颜色
+          color: 0xaaaaaa, // 稍微降低整体亮度（0xaaaaaa 约为 67% 亮度）
+        })
+        const photo = new THREE.Mesh(photoGeo, photoMat)
+        photo.position.z = 0.04
+
+        const group = new THREE.Group()
+        group.add(frame)
+        group.add(photo)
+
+        const s = 0.8
+        group.scale.set(s, s, s)
+
+        photoMeshGroup.add(group)
+        particleSystem.push(new Particle(group, 'PHOTO', false))
+      }
+
+      function handleImageUpload(e) {
+        const files = e.target.files
+        if (!files.length) return
+        Array.from(files).forEach((f) => {
+          const reader = new FileReader()
+          reader.onload = (ev) => {
+            new THREE.TextureLoader().load(ev.target.result, (t) => {
+              t.colorSpace = THREE.SRGBColorSpace
+              addPhotoToScene(t)
+            })
+          }
+          reader.readAsDataURL(f)
+        })
+      }
+
+      // 检测是否有摄像头
+      async function checkCameraAvailability() {
+        try {
+          if (!navigator.mediaDevices?.getUserMedia) {
+            console.log('getUserMedia not supported')
+            return false
+          }
+          // 先尝试获取设备列表（需要权限）
+          try {
+            const devices = await navigator.mediaDevices.enumerateDevices()
+            const hasVideoInput = devices.some((device) => device.kind === 'videoinput')
+            if (hasVideoInput) {
+              return true
+            }
+          } catch (e) {
+            // 如果没有权限，尝试直接请求摄像头
+            console.log('Cannot enumerate devices, trying direct access')
+          }
+          // 尝试直接请求摄像头（移动端可能需要）
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+            stream.getTracks().forEach((track) => track.stop()) // 立即停止，只是检测
+            return true
+          } catch (e) {
+            console.log('Camera access failed:', e.name)
+            return false
+          }
+        } catch (err) {
+          console.warn('Camera check failed:', err)
+          return false
+        }
+      }
+
+      // --- MEDIAPIPE 手势识别 ---
+      async function initMediaPipe() {
+        try {
+          video = document.getElementById('webcam')
+
+          // 先检测是否有摄像头
+          console.log('Checking camera availability...')
+          STATE.hasCamera = await checkCameraAvailability()
+          console.log('Camera available:', STATE.hasCamera)
+
+          if (!STATE.hasCamera) {
+            console.log('No camera available, using button controls')
+            showButtonControls()
+            if (video) {
+              video.style.display = 'none'
+            }
+            return
+          }
+
+          // 先请求摄像头权限（在 MediaPipe 之前）
+          const constraints = {
+            video: {
+              facingMode: 'user',
+              width: { ideal: 320 },
+              height: { ideal: 240 },
+              aspectRatio: { ideal: 4 / 3 },
+            },
+          }
+
+          let stream
+          try {
+            stream = await navigator.mediaDevices.getUserMedia(constraints)
+            video.srcObject = stream
+            STATE.cameraEnabled = true
+            console.log('Camera access granted')
+          } catch (permissionErr) {
+            console.warn('Camera permission denied:', permissionErr)
+            STATE.cameraEnabled = false
+            showButtonControls()
+            if (video) {
+              video.style.display = 'none'
+            }
+            return
+          }
+
+          // 添加超时处理（缩短超时时间，更快回退）
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('MediaPipe initialization timeout')), 8000),
+          )
+
+          console.log('Initializing MediaPipe...')
+          const visionPromise = FilesetResolver.forVisionTasks(
+            'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm',
+          )
+
+          const vision = await Promise.race([visionPromise, timeoutPromise])
+
+          const handLandmarkerPromise = HandLandmarker.createFromOptions(vision, {
+            baseOptions: {
+              modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+              delegate: 'GPU',
+            },
+            runningMode: 'VIDEO',
+            numHands: 1,
+          })
+
+          handLandmarker = await Promise.race([handLandmarkerPromise, timeoutPromise])
+          console.log('MediaPipe initialized successfully')
+
+          // 确保视频已加载后再启动预测
+          if (video.readyState >= 2) {
+            console.log('Video already loaded, starting gesture recognition')
+            predictWebcam()
+          } else {
+            video.addEventListener(
+              'loadeddata',
+              () => {
+                console.log('Video loaded, starting gesture recognition')
+                predictWebcam()
+              },
+              { once: true },
+            )
+          }
+
+          // 隐藏按钮控制，使用手势控制
+          hideButtonControls()
+          console.log('手势识别已启用，按钮控制已隐藏')
+        } catch (err) {
+          // 静默处理超时错误，直接切换到按钮控制
+          if (err.message && err.message.includes('timeout')) {
+            console.log('MediaPipe initialization timeout, using button controls')
+          } else {
+            console.warn('MediaPipe initialization failed:', err)
+          }
+          STATE.cameraEnabled = false
+          showButtonControls()
+          // 隐藏摄像头预览，如果初始化失败
+          if (video) {
+            video.style.display = 'none'
+          }
+          // 停止摄像头流
+          if (video && video.srcObject) {
+            const stream = video.srcObject
+            stream.getTracks().forEach((track) => track.stop())
+            video.srcObject = null
+          }
+        }
+      }
+
+      // 显示按钮控制
+      function showButtonControls() {
+        const controlButtons = document.getElementById('control-buttons')
+        const hintText = document.getElementById('hint-text')
+        if (controlButtons) {
+          controlButtons.style.display = 'flex'
+        }
+        if (hintText) {
+          hintText.textContent = '点击按钮切换模式'
+        }
+      }
+
+      // 隐藏按钮控制
+      function hideButtonControls() {
+        const controlButtons = document.getElementById('control-buttons')
+        const hintText = document.getElementById('hint-text')
+        if (controlButtons) {
+          controlButtons.style.display = 'none'
+        }
+        if (hintText) {
+          hintText.textContent = '🖐️ 张开散开 · ✊ 握拳合拢 · 🤏 捏合聚焦 · 👍 切换颜色'
+        }
+      }
+
+      // 按钮控制模式切换
+      function setModeFromButton(mode) {
+        STATE.mode = mode
+        STATE.focusTarget = null
+
+        if (mode === 'FOCUS') {
+          const photos = particleSystem.filter((p) => p.type === 'PHOTO')
+          if (photos.length) {
+            STATE.focusTarget = photos[Math.floor(Math.random() * photos.length)].mesh
+          } else {
+            // 如果没有照片，切换到树形
+            STATE.mode = 'TREE'
+          }
+        }
+
+        // 更新按钮状态
+        document.querySelectorAll('.control-btn').forEach((btn) => {
+          btn.classList.remove('active')
+          if (btn.dataset.mode === mode) {
+            btn.classList.add('active')
+          }
+        })
+      }
+
+      let lastVideoTime = -1
+      async function predictWebcam() {
+        // 检查视频是否已加载且摄像头已启用
+        if (!video || !video.readyState || video.readyState < 2 || !STATE.cameraEnabled) {
+          requestAnimationFrame(predictWebcam)
+          return
+        }
+
+        if (video.currentTime !== lastVideoTime) {
+          lastVideoTime = video.currentTime
+          if (handLandmarker && STATE.cameraEnabled) {
+            try {
+              const result = handLandmarker.detectForVideo(video, performance.now())
+              processGestures(result)
+            } catch (err) {
+              console.warn('手势识别错误:', err)
+            }
+          }
+        }
+        requestAnimationFrame(predictWebcam)
+      }
+
+      // 检测单根手指是否弯曲（使用多个关节点判断）
+      function isFingerCurled(lm, tipIdx, pipIdx, mcpIdx) {
+        const tip = lm[tipIdx]
+        const pip = lm[pipIdx]
+        const mcp = lm[mcpIdx]
+        const wrist = lm[0]
+
+        // 方法1：指尖到手腕的距离 vs 指根到手腕的距离
+        const tipToWrist = Math.hypot(tip.x - wrist.x, tip.y - wrist.y, tip.z - wrist.z)
+        const mcpToWrist = Math.hypot(mcp.x - wrist.x, mcp.y - wrist.y, mcp.z - wrist.z)
+
+        // 方法2：检查Y轴（在正常手势下，弯曲的手指tip.y > pip.y）
+        // 这里用相对比较，更鲁棒
+        const tipBelowPip = tip.y > pip.y + 0.02 // 指尖在PIP关节下方
+
+        // 综合判断：指尖比指根更接近手腕，或者指尖在PIP下方
+        return tipToWrist < mcpToWrist * 0.85 || tipBelowPip
+      }
+
+      // 检测拇指是否弯曲（拇指结构不同，单独处理）
+      function isThumbCurled(lm) {
+        const thumbTip = lm[4]
+        const thumbIp = lm[3]
+        const thumbMcp = lm[2]
+        const indexMcp = lm[5]
+
+        // 拇指尖到食指根部的距离（弯曲时会靠近）
+        const thumbToIndex = Math.hypot(thumbTip.x - indexMcp.x, thumbTip.y - indexMcp.y)
+
+        // 拇指尖到拇指根的距离
+        const thumbLength = Math.hypot(thumbTip.x - thumbMcp.x, thumbTip.y - thumbMcp.y)
+
+        return thumbToIndex < 0.1 || thumbLength < 0.08
+      }
+
+      // 检测大拇指是否伸出（点赞手势）
+      function isThumbUp(lm) {
+        const thumbTip = lm[4]
+        const thumbIp = lm[3]
+        const thumbMcp = lm[2]
+        const indexMcp = lm[5]
+
+        // 拇指尖到食指根部的距离（伸出时应该较远）
+        const thumbToIndex = Math.hypot(thumbTip.x - indexMcp.x, thumbTip.y - indexMcp.y)
+
+        // 拇指尖到拇指根的距离
+        const thumbLength = Math.hypot(thumbTip.x - thumbMcp.x, thumbTip.y - thumbMcp.y)
+
+        // 拇指向上：拇指尖在拇指根上方，且距离食指根部较远
+        const thumbUpward = thumbTip.y < thumbMcp.y // 拇指尖在拇指根上方
+        const thumbExtended = thumbLength > 0.12 // 拇指伸直
+        const thumbAwayFromIndex = thumbToIndex > 0.15 // 拇指远离食指
+
+        // 其他手指应该弯曲（握拳状态）
+        const indexCurled = isFingerCurled(lm, 8, 6, 5)
+        const middleCurled = isFingerCurled(lm, 12, 10, 9)
+        const ringCurled = isFingerCurled(lm, 16, 14, 13)
+        const pinkyCurled = isFingerCurled(lm, 20, 18, 17)
+        const otherFingersCurled =
+          [indexCurled, middleCurled, ringCurled, pinkyCurled].filter(Boolean).length >= 3
+
+        return thumbUpward && thumbExtended && thumbAwayFromIndex && otherFingersCurled
+      }
+
+      function processGestures(result) {
+        // 只有在摄像头启用且手势识别可用时才处理手势
+        if (!STATE.cameraEnabled || !handLandmarker) {
+          return
+        }
+
+        if (result.landmarks && result.landmarks.length > 0) {
+          STATE.hand.detected = true
+          const lm = result.landmarks[0]
+          STATE.hand.x = (lm[9].x - 0.5) * 2
+          STATE.hand.y = (lm[9].y - 0.5) * 2
+
+          // 检测每根手指是否弯曲
+          const indexCurled = isFingerCurled(lm, 8, 6, 5) // 食指
+          const middleCurled = isFingerCurled(lm, 12, 10, 9) // 中指
+          const ringCurled = isFingerCurled(lm, 16, 14, 13) // 无名指
+          const pinkyCurled = isFingerCurled(lm, 20, 18, 17) // 小指
+          const thumbCurled = isThumbCurled(lm)
+
+          // 计算弯曲手指数量
+          const curledCount = [indexCurled, middleCurled, ringCurled, pinkyCurled].filter(
+            Boolean,
+          ).length
+
+          // 捏合检测：拇指和食指靠近
+          const thumbTip = lm[4]
+          const indexTip = lm[8]
+          const pinchDist = Math.hypot(
+            thumbTip.x - indexTip.x,
+            thumbTip.y - indexTip.y,
+            thumbTip.z - indexTip.z,
+          )
+          const isPinching = pinchDist < 0.08 // 放宽阈值
+
+          // 检测OK手势：拇指+食指靠近形成圆圈，其他三指伸直
+          const otherFingersStraight = !middleCurled && !ringCurled && !pinkyCurled
+          const isOkGesture = isPinching && otherFingersStraight
+
+          // 检测大拇指伸出（点赞手势）
+          const isThumbUpGesture = isThumbUp(lm)
+
+          // 处理颜色主题切换（大拇指手势）
+          if (isThumbUpGesture) {
+            const now = Date.now()
+            if (now - STATE.gesture.lastThumbUpTime >= STATE.gesture.thumbUpDebounceDelay) {
+              STATE.gesture.lastThumbUpTime = now
+              switchColorTheme()
+            }
+          }
+
+          // 手势判断逻辑（手势控制优先于按钮控制）
+          // 1. OK手势（👌）：拇指食指形成圆圈，其他手指伸直 → 聚焦
+          // 2. 握拳（✊）：3根以上手指弯曲 → 树形
+          // 3. 张开（🖐️）：2根以下手指弯曲 → 散开
+          // 4. 大拇指（👍）：伸出大拇指 → 切换颜色主题
+
+          // 检测目标模式
+          let targetMode = STATE.mode // 默认保持当前模式
+
+          if (isOkGesture) {
+            targetMode = 'FOCUS'
+          } else if (curledCount >= 3) {
+            targetMode = 'TREE'
+          } else if (curledCount <= 1 && !isPinching) {
+            targetMode = 'SCATTER'
+          }
+
+          // 防抖处理：只有目标模式与当前模式不同，且持续一定时间后才切换
+          const now = Date.now()
+
+          if (targetMode !== STATE.gesture.lastMode) {
+            // 手势变化，重置计时器
+            STATE.gesture.lastMode = targetMode
+            STATE.gesture.lastModeTime = now
+          } else if (targetMode !== STATE.mode) {
+            // 目标模式已稳定，检查是否超过防抖延迟
+            if (now - STATE.gesture.lastModeTime >= STATE.gesture.debounceDelay) {
+              // 执行模式切换
+              STATE.mode = targetMode
+
+              if (targetMode === 'FOCUS') {
+                // OK手势 → 聚焦照片
+                const photos = particleSystem.filter((p) => p.type === 'PHOTO')
+                if (photos.length) {
+                  STATE.focusTarget = photos[Math.floor(Math.random() * photos.length)].mesh
+                } else {
+                  // 如果没有照片，切换到树形
+                  STATE.mode = 'TREE'
+                  STATE.focusTarget = null
+                }
+              } else {
+                STATE.focusTarget = null
+              }
+
+              // 更新按钮状态
+              updateButtonStates()
+            }
+          }
+          // 如果目标模式与当前模式相同，不需要处理
+        } else {
+          // 未检测到手势时，如果之前是手势控制，保持当前模式
+          // 不强制切换，让用户继续看到当前状态
+          STATE.hand.detected = false
+          // 重置防抖状态
+          STATE.gesture.lastMode = STATE.mode
+          STATE.gesture.lastModeTime = Date.now()
+        }
+      }
+
+      // 更新按钮状态（同步手势控制的状态）
+      function updateButtonStates() {
+        document.querySelectorAll('.control-btn').forEach((btn) => {
+          btn.classList.remove('active')
+          if (btn.dataset.mode === STATE.mode) {
+            btn.classList.add('active')
+          }
+        })
+      }
+
+      // 切换颜色主题
+      function switchColorTheme() {
+        STATE.colorThemeIndex = (STATE.colorThemeIndex + 1) % CONFIG.colorThemes.length
+        const currentTheme = CONFIG.colorThemes[STATE.colorThemeIndex]
+
+        // 更新背景色和雾效
+        scene.background = new THREE.Color(currentTheme.bg)
+        scene.fog = new THREE.FogExp2(currentTheme.bg, 0.01)
+
+        // 更新材质颜色
+        if (materialRefs.goldMat) {
+          materialRefs.goldMat.color.setHex(currentTheme.champagneGold)
+          materialRefs.goldMat.emissive.setHex(currentTheme.goldEmissive)
+        }
+        if (materialRefs.greenMat) {
+          materialRefs.greenMat.color.setHex(currentTheme.deepGreen)
+          materialRefs.greenMat.emissive.setHex(currentTheme.greenEmissive)
+        }
+        if (materialRefs.redMat) {
+          materialRefs.redMat.color.setHex(currentTheme.accentRed)
+          materialRefs.redMat.emissive.setHex(currentTheme.redEmissive)
+        }
+        if (materialRefs.starMat) {
+          materialRefs.starMat.color.setHex(currentTheme.champagneGold)
+          materialRefs.starMat.emissive.setHex(currentTheme.champagneGold)
+        }
+
+        console.log(`颜色主题已切换为: ${currentTheme.name}`)
+      }
+
+      function setupEvents() {
+        window.addEventListener('resize', () => {
+          camera.aspect = window.innerWidth / window.innerHeight
+          camera.updateProjectionMatrix()
+          renderer.setSize(window.innerWidth, window.innerHeight)
+          composer.setSize(window.innerWidth, window.innerHeight)
+        })
+
+        document.getElementById('file-input').addEventListener('change', handleImageUpload)
+
+        // 按钮控制事件
+        document.querySelectorAll('.control-btn').forEach((btn) => {
+          btn.addEventListener('click', (e) => {
+            const mode = e.target.dataset.mode
+            if (mode) {
+              setModeFromButton(mode)
+            }
+          })
+        })
+
+        // 触摸旋转
+        const canvas = renderer.domElement
+
+        canvas.addEventListener(
+          'touchstart',
+          (e) => {
+            if (e.touches.length === 1) {
+              STATE.touch.isDragging = true
+              STATE.touch.lastX = e.touches[0].clientX
+              STATE.touch.lastY = e.touches[0].clientY
+            } else if (e.touches.length === 2) {
+              STATE.touch.pinchDistance = getPinchDistance(e.touches)
+            }
+          },
+          { passive: true },
+        )
+
+        canvas.addEventListener(
+          'touchmove',
+          (e) => {
+            if (e.touches.length === 1 && STATE.touch.isDragging) {
+              const deltaX = e.touches[0].clientX - STATE.touch.lastX
+              const deltaY = e.touches[0].clientY - STATE.touch.lastY
+
+              STATE.rotation.y += deltaX * 0.008
+              STATE.rotation.x += deltaY * 0.004
+              STATE.rotation.x = Math.max(-0.5, Math.min(0.5, STATE.rotation.x))
+
+              STATE.touch.lastX = e.touches[0].clientX
+              STATE.touch.lastY = e.touches[0].clientY
+            } else if (e.touches.length === 2) {
+              const newDistance = getPinchDistance(e.touches)
+              const scale = newDistance / STATE.touch.pinchDistance
+              camera.position.z = Math.max(25, Math.min(80, camera.position.z / scale))
+              STATE.touch.pinchDistance = newDistance
+            }
+          },
+          { passive: true },
+        )
+
+        canvas.addEventListener(
+          'touchend',
+          () => {
+            STATE.touch.isDragging = false
+          },
+          { passive: true },
+        )
+      }
+
+      function getPinchDistance(touches) {
+        const dx = touches[0].clientX - touches[1].clientX
+        const dy = touches[0].clientY - touches[1].clientY
+        return Math.sqrt(dx * dx + dy * dy)
+      }
+
+      function animate() {
+        requestAnimationFrame(animate)
+        const dt = clock.getDelta()
+
+        const autoRotate = !STATE.touch.isDragging
+
+        // 手势控制旋转
+        if (STATE.mode === 'SCATTER' && STATE.hand.detected) {
+          const targetRotY = STATE.hand.x * Math.PI * 0.9
+          const targetRotX = STATE.hand.y * Math.PI * 0.25
+          STATE.rotation.y += (targetRotY - STATE.rotation.y) * 3.0 * dt
+          STATE.rotation.x += (targetRotX - STATE.rotation.x) * 3.0 * dt
+        } else if (autoRotate) {
+          if (STATE.mode === 'TREE') {
+            STATE.rotation.y += 0.3 * dt
+            STATE.rotation.x += (0 - STATE.rotation.x) * 2.0 * dt
+          } else {
+            STATE.rotation.y += 0.1 * dt
+          }
+        }
+
+        mainGroup.rotation.y = STATE.rotation.y
+        mainGroup.rotation.x = STATE.rotation.x
+
+        // 聚焦模式下降低曝光，让图片更清晰可见
+        if (STATE.mode === 'FOCUS') {
+          renderer.toneMappingExposure = THREE.MathUtils.lerp(
+            renderer.toneMappingExposure,
+            0.65,
+            dt * 2,
+          )
+        } else {
+          renderer.toneMappingExposure = THREE.MathUtils.lerp(
+            renderer.toneMappingExposure,
+            2.2,
+            dt * 2,
+          )
+        }
+
+        particleSystem.forEach((p) => p.update(dt, STATE.mode, STATE.focusTarget))
+        composer.render()
+      }
+
+      // init() 已在资源加载完成后自动调用
+    </script>
+  </body>
+</html>
